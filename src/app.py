@@ -36,14 +36,27 @@ def handle_invalid_usage(error):
 def sitemap():
     return generate_sitemap(app)
 
-@app.route('/user', methods=['GET'])
-def handle_hello():
+@app.route('/users', methods=['GET'])
+def get_all_users():
+    try:
+        users = User.query.all()
+        if len(users) < 1:
+            return jsonify({"msg": "Not found users"}), 404
+        serialized_users = list(map( lambda x: x.serialize(), users))
+        return serialized_users, 200
+    except Exception as e:
+        return jsonify({"msg": "Server error", "error": str(e)}), 500
 
-    response_body = {
-        "msg": "Hello, this is your GET /user response "
-    }
-
-    return jsonify(response_body), 200
+@app.route('/users/<int:user_id>', methods=['GET'])
+def get_user(user_id):
+    try:
+        user = User.query.get(user_id)
+        if user is None:
+            return jsonify({"msg": f"Not found user: {user_id}"}), 404
+        serialized_user = user.serialize()
+        return serialized_user, 200
+    except Exception as e:
+        return jsonify({"msg": "Server error", "error": str(e)}), 500
 
 # this only runs if `$ python src/app.py` is executed
 if __name__ == '__main__':
