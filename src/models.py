@@ -40,7 +40,6 @@ class People(db.Model):
             "gender": self.gender,
             "hair_color": self.hair_color,
             "height": self.height,
-            "homeworld": self.homeworld,
             "mass": self.mass,
             "name": self.name,
             "skin_color": self.skin_color
