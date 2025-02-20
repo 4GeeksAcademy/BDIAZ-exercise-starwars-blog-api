@@ -8,7 +8,7 @@ from flask_swagger import swagger
 from flask_cors import CORS
 from utils import APIException, generate_sitemap
 from admin import setup_admin
-from models import db, User, People, Film, Species
+from models import db, User, People, Film, Species, Favorites
 #from models import Person
 
 app = Flask(__name__)
@@ -77,9 +77,34 @@ def create_user():
         return jsonify({"msg": "Server error", "error": str(e)}), 500
 
 # Editar el usuario - extra
+@app.route('/user/<int:user_id>', methods=['PUT'])
+def update_user(user_id):
+    try:
+        body = request.get_json()
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({"msg": f"User {user_id} not found"}), 404
 
-# Borrar el usuario - extra
+        user.email = body.get("email", user.email)
+        user.password = body.get("password", user.password)
+        user.is_active = body.get("is_active", user.is_active)
 
+        db.session.commit()
+        return jsonify({"msg": f"User {user_id} updated successfully"}), 200
+    except Exception as e:
+        return jsonify({"msg": "Server error", "error": str(e)}), 500
+    
+# favoritos usuario 
+@app.route('/user/favorites/<int:user_id>', methods=['GET'])
+def get_user_favorites(user_id):
+    try:
+        favorites = Favorites.query.filter_by(user_id=user_id).all()
+        if not favorites:
+            return jsonify({"msg": f"No favorites found for user {user_id}"}), 404
+        return jsonify([fav.serialize() for fav in favorites]), 200
+    except Exception as e:
+        return jsonify({"msg": "Server error", "error": str(e)}), 500
+    
 # Traer todos los personajes
 @app.route('/people', methods=['GET'])
 def get_all_people():
@@ -91,19 +116,7 @@ def get_all_people():
         return serialize_people, 200
     except Exception as e:
         return jsonify({"msg": "Server error", "error": str(e)}), 500
-
-# Traer solo un personaje
-@app.route('/people/<int:character_id>', methods=['GET'])
-def get_character(character_id):
-    try:
-        character = People.query.get(character_id)
-        if character is None:
-            return jsonify({"msg": f"Not found character: {character_id}"}), 404
-        serialized_user = character.serialize()
-        return serialized_user, 200
-    except Exception as e:
-        return jsonify({"msg": "Server error", "error": str(e)}), 500
-
+ 
 # Crear un personaje
 @app.route('/people', methods=['POST'])
 def create_character():
@@ -124,12 +137,74 @@ def create_character():
         return jsonify({"msg": "Character: created succefully"}), 201
     except Exception as e:
         return jsonify({"msg": "Server error", "error": str(e)}), 500
+    
+# Traer solo un personaje
+@app.route('/people/<int:character_id>', methods=['GET'])
+def get_character(character_id):
+    try:
+        character = People.query.get(character_id)
+        if character is None:
+            return jsonify({"msg": f"Not found character: {character_id}"}), 404
+        serialized_user = character.serialize()
+        return serialized_user, 200
+    except Exception as e:
+        return jsonify({"msg": "Server error", "error": str(e)}), 500
 
 # Editar el personaje - extra
+@app.route('/people/<int:people_id>', methods=['PUT'])
+def update_people(people_id):
+    try:
+        body = request.get_json()
+        people = People.query.get(people_id)
+        if not people:
+            return jsonify({"msg": f"People {people_id} not found"}), 404
 
-# Borrar el personaje - extra
+        people.birth_year = body.get("birth_year", people.birth_year)
+        people.eye_color = body.get("eye_color", people.eye_color)
+        people.gender = body.get("gender", people.gender)
+        people.skin_color = body.get("skin_color", people.skin_color)
 
-# Traer todos las peliculas
+        db.session.commit()
+        return jsonify({"msg": f"People {people_id} updated successfully"}), 200
+    except Exception as e:
+        return jsonify({"msg": "Server error", "error": str(e)}), 500
+# Borrar favorito de personaje - extra
+@app.route('/favorite/people/<int:people_id>/user/<int:user_id>', methods=['DELETE'])
+def delete_people_favorite(people_id, user_id):
+    try:
+        favorite = Favorites.query.filter_by(user_id=user_id, people_id=people_id).first()
+        if not favorite:
+            return jsonify({"msg": f"Favorite people with id {people_id} not found for user {user_id}"}), 404
+        db.session.delete(favorite)
+        db.session.commit()
+        return jsonify({"msg": f"Favorite people with id {people_id} deleted successfully"}), 200
+    except Exception as e:
+        return jsonify({"msg": "Server error", "error": str(e)}), 500
+    
+@app.route('/favorite/people/<int:people_id>/user/<int:user_id>', methods=['POST'])
+def add_favorite_people(people_id, user_id):
+    try:
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({"msg": "User not found"}), 404
+        people = People.query.get(people_id)
+        if not people:
+            return jsonify({"msg": "People not found"}), 404
+        existing_favorite = Favorites.query.filter_by(user_id=user_id, people_id=people_id).first()
+        if existing_favorite:
+            return jsonify({"msg": "People is already in favorites"}), 400
+        new_favorite = Favorites(
+            user_id=user_id,
+            people_id=people_id
+        )
+        db.session.add(new_favorite)
+        db.session.commit()
+
+        return jsonify({"msg": "People added to favorites successfully"}), 201
+    except Exception as e:
+        return jsonify({"msg": "Server error", "error": str(e)}), 500
+    
+# Traer todos los planetas
 @app.route('/films', methods=['GET'])
 def get_all_films():
     try:
@@ -171,9 +246,6 @@ def create_film():
     except Exception as e:
         return jsonify({"msg": "Server error", "error": str(e)}), 500
 
-# Editar una peli - extra
-
-# Borrar una peli - extra
 
 # Traer todos las especies
 @app.route('/species', methods=['GET'])
@@ -221,9 +293,6 @@ def create_specie():
     except Exception as e:
         return jsonify({"msg": "Server error", "error": str(e)}), 500
 
-# Editar una especie - extra
-
-# Borrar una especie - extra
 
 # this only runs if `$ python src/app.py` is executed
 if __name__ == '__main__':
